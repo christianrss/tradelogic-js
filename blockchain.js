@@ -1,4 +1,10 @@
 const crypto = require('crypto'); SHA256 = message => crypto.createHash('sha256').update(message).digest('hex')
+const EC = require('elliptic').ec, ec = new EC('secp256k1');
+
+const MINT_WALLET = ec.genKeyPair();
+const MINT_PUBLIC_ADDRESS = MINT_WALLET.getPublic('hex');
+const MINT_PRIVATE_ADDRESS = MINT_WALLET.getPrivate('hex');
+
 class Block {
 	constructor(data = []) {
 		this.timestamp = Date.now();
@@ -18,13 +24,54 @@ class Block {
 			this.hash = this.getHash();
 		}
 	}
+
+	hasValidTransactions(chain) {
+		return this.data.every(transaction => transaction.isValid(transaction, chain));
+	}
 }
 
 class Blockchain {
 	constructor() {
-		this.chain = [new Block(['Genesis Block'])];
+		const initialCoinRelease = new Transaction(MINT_PUBLIC_ADDRESS, JOHN_WALLET.getPublic('hex'), 1000);
+		this.chain = [new Block([initialCoinRelease])];
 		this.difficulty = 2;
 		this.blockTime = 5000;
+		this.transactions = [];
+		this.reward = 10;
+	}
+
+	addTransaction(transaction) {
+		if (transaction.isValid(transaction, this)) {
+			this.transactions.push(transaction);
+		}
+	}
+
+	mineTransactions(rewardAddress) {
+		let gas = 0;
+		this.transactions.forEach(transaction => {
+			gas += transaction.gas;
+		});
+		const rewardTransaction = new Transaction(MINT_PUBLIC_ADDRESS, rewardAddress, this.reward + gas);
+		if (this.transactions.length !== 0) {
+			this.addBlock(new Block([rewardTransaction, ...this.transactions]));
+		}
+		this.transactions = [];
+	}
+
+	getBalance(address) {
+		let balance = 0;
+		this.chain.forEach(block => {
+			block.data.forEach(transaction => {
+				if (transaction.from === address) {
+					balance -= transaction.amount;
+					balance -= transaction.gas;
+				}
+				if (transaction.to === address) {
+					balance += transaction.amount;
+				}
+			});
+		});
+		return balance;
 	}
 
 	getLastBlock() {
@@ -42,7 +89,10 @@ class Blockchain {
 		for (let i = 1; i < this.chain.length; i++) {
 			const currentBlock = this.chain[i];
 			const prevBlock = this.chain[i-1];
-			if (currentBlock.hash !== currentBlock.getHash() || currentBlock.prevHash !== prevBlock.hash) {
+			if (currentBlock.hash !== currentBlock.getHash() || 
+				currentBlock.prevHash !== prevBlock.hash ||
+				currentBlock.hasValidTransactions(this)
+				) {
 				return false;
 			}
 			return true;
@@ -50,9 +100,51 @@ class Blockchain {
 	}
 }
 
+class Transaction {
+	constructor (from, to, amount, gas = 0) {
+		this.from = from;
+		this.to = to;
+		this.amount = amount;
+		this.gas = gas;
+	}
+
+	sign(keyPair) {
+		if (keyPair.getPublic('hex') === this.from) {
+			this.signature = keyPair.sign(SHA256(this.from + this.to + this.amount + this.gas)).toDER('hex');
+		}
+	}
+
+	isValid(tx, chain) {
+		return (
+			tx.from &&
+			tx.to && 
+			tx.amount &&
+			chain.getBalance(tx.from) >= tx.amount + tx.gas &&
+			ec.keyFromPublic(tx.from, 'hex').verify(SHA256(tx.from + tx.to + tx.amount + tx.gas), tx.signature)
+		);
+	}
+}
+
+const JOHN_WALLET = ec.genKeyPair();
+const JENNIFER_WALLET = ec.genKeyPair();
+const MINER_WALLET = ec.genKeyPair();
+const BOB_WALLET = ec.genKeyPair();
+
 const LogvCoin = new Blockchain();
-LogvCoin.addBlock(new Block(['Transaction 1']));
-LogvCoin.addBlock(new Block(['Transaction 2']));
-LogvCoin.addBlock(new Block(['Transaction 3']));
+
+const transaction1 = new Transaction(JOHN_WALLET.getPublic('hex'), JENNIFER_WALLET.getPublic('hex'), 200, 20);
+transaction1.sign(JOHN_WALLET);
+LogvCoin.addTransaction(transaction1);
+LogvCoin.mineTransactions(MINER_WALLET.getPublic('hex'));
+
+const transaction2 = new Transaction(JENNIFER_WALLET.getPublic('hex'), BOB_WALLET.getPublic('hex'), 100, 10);
+transaction2.sign(JENNIFER_WALLET);
+LogvCoin.addTransaction(transaction2);
+LogvCoin.mineTransactions(MINER_WALLET.getPublic('hex'));
+
 console.log(LogvCoin.chain);
-console.log("Is Blockchain Valid:", LogvCoin.isValid());
+console.log("John's Balance:", LogvCoin.getBalance(JOHN_WALLET.getPublic('hex')));
+console.log("Jennifer's Balance:", LogvCoin.getBalance(JENNIFER_WALLET.getPublic('hex')));
+console.log("Bob's Balance:", LogvCoin.getBalance(BOB_WALLET.getPublic('hex')));
+console.log("Miner's Balance:", LogvCoin.getBalance(MINER_WALLET.getPublic('hex')));
+

@@ -1,8 +1,8 @@
 const WS = require('ws');
 
-const PORT = 3002;
+const PORT = 3001;
 
-const MY_ADDRESS = "ws://localhost:3002";
+const MY_ADDRESS = "ws://localhost:3001";
 
 const server = new WS.Server({ port: PORT });
 
@@ -55,8 +55,12 @@ function sendMessage(message) {
 	});
 }
 
+
+
+
 setTimeout(() => {
+
 	sendMessage(produceMessage("MESSAGE", "Hello from Jennifer!"));
-}, 1500);
+}, 15000);
 
 process.on("uncaughtException", err => console.log(err));

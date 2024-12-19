@@ -1,13 +1,15 @@
 const crypto = require('crypto'); SHA256 = message => crypto.createHash('sha256').update(message).digest('hex')
 const EC = require('elliptic').ec, ec = new EC('secp256k1');
 
-const MINT_WALLET = ec.genKeyPair();
-const MINT_PUBLIC_ADDRESS = MINT_WALLET.getPublic('hex');
-const MINT_PRIVATE_ADDRESS = MINT_WALLET.getPrivate('hex');
+const MINT_PRIVATE_ADDRESS = '0700a1ad28a20e5b2a517c00242d3e25a88d84bf54dce9e1733e6096e6d6495e';
+const MINT_KEY_PAIR = ec.keyFromPrivate(MINT_PRIVATE_ADDRESS, 'hex');
+const MINT_PUBLIC_ADDRESS = MINT_KEY_PAIR.getPublic('hex');
+
+const key = require('./keys');
 
 class Block {
-	constructor(data = []) {
-		this.timestamp = Date.now();
+	constructor(timestamp, data = []) {
+		this.timestamp = timestamp;
 		this.data = data;
 		this.hash = this.getHash();
 		this.prevHash = "";
@@ -25,15 +27,15 @@ class Block {
 		}
 	}
 
-	hasValidTransactions(chain) {
-		return this.data.every(transaction => transaction.isValid(transaction, chain));
+	static hasValidTransactions(block, chain) {
+		return block.data.every(transaction => Transaction.isValid(transaction, chain));
 	}
 }
 
 class Blockchain {
 	constructor() {
-		const initialCoinRelease = new Transaction(MINT_PUBLIC_ADDRESS, JOHN_WALLET.getPublic('hex'), 1000);
-		this.chain = [new Block([initialCoinRelease])];
+		const initialCoinRelease = new Transaction(MINT_PUBLIC_ADDRESS, key.JOHN_KEY.getPublic('hex'), 1000);
+		this.chain = [new Block('', [initialCoinRelease])];
 		this.difficulty = 2;
 		this.blockTime = 5000;
 		this.transactions = [];
@@ -41,7 +43,7 @@ class Blockchain {
 	}
 
 	addTransaction(transaction) {
-		if (transaction.isValid(transaction, this)) {
+		if (Transaction.isValid(transaction, this)) {
 			this.transactions.push(transaction);
 		}
 	}
@@ -52,8 +54,9 @@ class Blockchain {
 			gas += transaction.gas;
 		});
 		const rewardTransaction = new Transaction(MINT_PUBLIC_ADDRESS, rewardAddress, this.reward + gas);
+		rewardTransaction.sign(MINT_KEY_PAIR);
 		if (this.transactions.length !== 0) {
-			this.addBlock(new Block([rewardTransaction, ...this.transactions]));
+			this.addBlock(new Block(Date.now().toString(), [rewardTransaction, ...this.transactions]));
 		}
 		this.transactions = [];
 	}
@@ -82,7 +85,7 @@ class Blockchain {
 		block.prevHash = this.getLastBlock().hash;
 		block.mine(this.difficulty);
 		this.chain.push(block);
-		this.difficulty += Date.now() - this.getLastBlock().timestamp < this.blockTime ? 1 : -1;
+		this.difficulty += Date.now() - parseInt(this.getLastBlock().timestamp) < this.blockTime ? 1 : -1;
 	}
 
 	isValid() {
@@ -91,7 +94,7 @@ class Blockchain {
 			const prevBlock = this.chain[i-1];
 			if (currentBlock.hash !== currentBlock.getHash() || 
 				currentBlock.prevHash !== prevBlock.hash ||
-				currentBlock.hasValidTransactions(this)
+				!Block.hasValidTransactions(currentBlock, this)
 				) {
 				return false;
 			}
@@ -114,12 +117,12 @@ class Transaction {
 		}
 	}
 
-	isValid(tx, chain) {
+	static isValid(tx, chain) {
 		return (
 			tx.from &&
 			tx.to && 
 			tx.amount &&
-			chain.getBalance(tx.from) >= tx.amount + tx.gas &&
+			(chain.getBalance(tx.from) >= tx.amount + tx.gas || tx.from === MINT_PUBLIC_ADDRESS) &&
 			ec.keyFromPublic(tx.from, 'hex').verify(SHA256(tx.from + tx.to + tx.amount + tx.gas), tx.signature)
 		);
 	}
@@ -131,7 +134,8 @@ const MINER_WALLET = ec.genKeyPair();
 const BOB_WALLET = ec.genKeyPair();
 
 const LogvCoin = new Blockchain();
-
+module.exports = { Block, Transaction, LogvCoin };
+/*
 const transaction1 = new Transaction(JOHN_WALLET.getPublic('hex'), JENNIFER_WALLET.getPublic('hex'), 200, 20);
 transaction1.sign(JOHN_WALLET);
 LogvCoin.addTransaction(transaction1);
@@ -147,4 +151,4 @@ console.log("John's Balance:", LogvCoin.getBalance(JOHN_WALLET.getPublic('hex'))
 console.log("Jennifer's Balance:", LogvCoin.getBalance(JENNIFER_WALLET.getPublic('hex')));
 console.log("Bob's Balance:", LogvCoin.getBalance(BOB_WALLET.getPublic('hex')));
 console.log("Miner's Balance:", LogvCoin.getBalance(MINER_WALLET.getPublic('hex')));
-
+*/

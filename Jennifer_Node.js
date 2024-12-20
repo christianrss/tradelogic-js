@@ -1,8 +1,14 @@
 const WS = require('ws');
 
-const PORT = 3001;
+const { Block, LogvCoin } = require('./blockchain');
 
-const MY_ADDRESS = "ws://localhost:3001";
+const readline = require('readline');
+
+const key = require('./keys');
+
+const PORT = 3002;
+
+const MY_ADDRESS = "ws://localhost:3002";
 
 const server = new WS.Server({ port: PORT });
 
@@ -15,6 +21,22 @@ server.on("connection", (socket) => {
 		const _message = JSON.parse(message);
 		console.log(_message);
 		switch(_message.type) {
+			case "TYPE_REPLACE_CHAIN":
+				const [ newBlock, newDiff ] = _messsage.data;
+				if (newBlock.previousHash !== LogvCoin.getLastBlock().prevHash &&
+					LogvCoin.getLastBlock().hash === newBlock.prevHash &&
+					Block.hasValidTransactions(newBlock, LogvCoin))
+					{
+						LogvCoin.chain.push(newBlock);
+						LogvCoin.difficulty = newDiff;
+					}
+				break;
+			case "TYPE_CREATE_TRANSACTION":
+				const transaction = _message.data;
+				if (!isTransactionDuplicate(transaction)) {
+					LogvCoin.addTransaction(transaction);
+				}
+				break;
 			case "TYPE_HANDSHAKE":
 				const nodes = _message.data;
 				nodes.forEach(node => connect(node));
@@ -23,6 +45,27 @@ server.on("connection", (socket) => {
 	});
 
 });
+
+function isTransactionDuplicate(transaction) {
+	return LogvCoin.transactions.some(tx => JSON.stringify(tx) === JSON.stringify(transaction));
+}
+
+function broadcastTransactions() {
+	LogvCoin.transactions.forEach((transaction, index) => {
+		if (isTransactionIncluded(transaction)) {
+			LogvCoin.transactions.splice(index, 1);
+		} else {
+			sendMessage(produceMessage('TYPE_CREATE_TRANSACTION', transaction));
+		}
+	});
+	setTimeout(broadcastTransactions, 10000);
+}
+
+broadcastTransactions();
+
+function isTransactionIncluded(transaction) {
+	return LogvCoin.chain.some(block => block.data.some(tx => JSON.stringify(tx) === JSON.stringify(transaction)));
+}
 
 function connect(address) {
 
@@ -55,12 +98,33 @@ function sendMessage(message) {
 	});
 }
 
+const rl = readline.createInterface({
+	input: process.stdin,
+	output: process.stdout,
+	prompt: 'Enter a command:\n'
+});
 
+rl.on('line', (command) => {
+	switch(command.toLowerCase())
+	{
+		case 'send':
+			const transaction = new Transaction(key.JENNIFER_KEY.getPublic('hex'), key.JOHN_KEY.getPublic('hex'), 500, 50);
+			transaction.sign(key.JENNIFER_KEY);
+			sendMessage(produceMessage('TYPE_CREATE_TRANSACTION', transaction));
+			break;
+		case 'balance':
+			console.log('Jennifer Balance:', LogvCoin.getBalance(key.JENNIFER_KEY.getPublic('hex')));
+			break;
+		case 'blockchain':
+			console.log(LogvCoin);
+			break;
+		case 'clear':
+			console.clear();
+			break; 
+	}
+	rl.prompt();
+}).on('close', () => {
+	console.log('Exiting');
+	process.exit(0);
+});
 
-
-setTimeout(() => {
-
-	sendMessage(produceMessage("MESSAGE", "Hello from Jennifer!"));
-}, 15000);
-
-process.on("uncaughtException", err => console.log(err));

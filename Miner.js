@@ -1,6 +1,6 @@
 const WS = require('ws');
 
-const { Block, LogvCoin } = requireq('./blockchain');
+const { Block, LogvCoin, Transaction } = require('./blockchain');
 
 const readline = require('readline');
 
@@ -24,9 +24,9 @@ server.on("connection", (socket) => {
 		console.log(_message);
 		switch(_message.type) {
 			case "TYPE_REPLACE_CHAIN":
-				const [ newBlock, newDiff ] = _messsage.data;
+				const [ newBlock, newDiff ] = _message.data;
 				if (newBlock.previousHash !== LogvCoin.getLastBlock().prevHash &&
-					LogvCoin.getLastBlock().hash === newBlock.prevHash) &&
+					LogvCoin.getLastBlock().hash === newBlock.prevHash &&
 					Block.hasValidTransactions(newBlock, LogvCoin))
 					{
 						LogvCoin.chain.push(newBlock);
@@ -87,7 +87,7 @@ PEERS.forEach(peer => connect(peer));
 
 const rl = readline.createInterface({
 	input: process.stdin,
-	output process.stdout,
+	output: process.stdout,
 	prompt: 'Enter a command:\n'
 });
 
@@ -105,7 +105,7 @@ rl.on('line', (command) => {
 			}
 			break;
 		case 'balance':
-			console.log('Miner Balance:', LogvCoin.getBalance(key.MINER_KEY.getPublic('hex'));
+			console.log('Miner Balance:', LogvCoin.getBalance(key.MINER_KEY.getPublic('hex')));
 			break;
 		case 'blockchain':
 			console.log(LogvCoin);

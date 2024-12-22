@@ -1,6 +1,6 @@
 const WS = require('ws');
 
-const { Block, LogvCoin } = require('./blockchain');
+const { Block, LogvCoin, Transaction } = require('./blockchain');
 
 const readline = require('readline');
 
@@ -22,7 +22,7 @@ server.on("connection", (socket) => {
 		console.log(_message);
 		switch(_message.type) {
 			case "TYPE_REPLACE_CHAIN":
-				const [ newBlock, newDiff ] = _messsage.data;
+				const [ newBlock, newDiff ] = _message.data;
 				if (newBlock.previousHash !== LogvCoin.getLastBlock().prevHash &&
 					LogvCoin.getLastBlock().hash === newBlock.prevHash &&
 					Block.hasValidTransactions(newBlock, LogvCoin))

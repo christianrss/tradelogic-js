@@ -1,6 +1,6 @@
 const WS = require('ws');
 
-const { Block, LogvCoin, Transaction } = require('./blockchain');
+const { Transaction } = require('./blockchain');
 
 const readline = require('readline');
 
@@ -14,7 +14,7 @@ const server = new WS.Server({ port: PORT });
 
 let opened = [], connected = [];
 
-console.log("John listening on PORT", PORT);
+console.log("Christian listening on PORT", PORT);
 
 server.on("connection", (socket) => {
 	socket.on("message", message => {
@@ -34,26 +34,6 @@ server.on("connection", (socket) => {
 
 });
 
-function isTransactionDuplicate(transaction) {
-	return LogvCoin.transactions.some(tx => JSON.stringify(tx) === JSON.stringify(transaction));
-}
-
-function broadcastTransactions() {
-	LogvCoin.transactions.forEach((transaction, index) => {
-		if (isTransactionIncluded(transaction)) {
-			LogvCoin.transactions.splice(index, 1);
-		} else {
-			sendMessage(produceMessage('TYPE_CREATE_TRANSACTION', transaction));
-		}
-	});
-	setTimeout(broadcastTransactions, 10000);
-}
-
-broadcastTransactions();
-
-function isTransactionIncluded(transaction) {
-	return LogvCoin.chain.some(block => block.data.some(tx => JSON.stringify(tx) === JSON.stringify(transaction)));
-}
 
 function connect(address) {
 

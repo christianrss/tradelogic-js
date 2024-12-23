@@ -6,15 +6,15 @@ const readline = require('readline');
 
 const key = require('./keys');
 
-const PORT = 3001;
+const PORT = 3002;
 
-const MY_ADDRESS = "ws://localhost:3001";
+const MY_ADDRESS = "ws://localhost:3002";
 
 const server = new WS.Server({ port: PORT });
 
 let opened = [], connected = [];
 
-console.log("John listening on PORT", PORT);
+console.log("Spock listening on PORT", PORT);
 
 server.on("connection", (socket) => {
 	socket.on("message", message => {
@@ -36,6 +36,24 @@ server.on("connection", (socket) => {
 				if (!isTransactionDuplicate(transaction)) {
 					LogvCoin.addTransaction(transaction);
 				}
+				break;
+			case "TYPE_BALANCE":
+				const [address, public_key] = _message.data;
+				opened.forEach(node => {
+					if (node.address === address) {
+						const balance = LogvCoin.getBalance(public_key);
+						node.socket.send(JSON.stringify(produceMessage("TYPE_BALANCE", balance)));
+					}
+				});
+			case "TYPE_VERIFIY":
+				const peer_address = _message.data[0];
+				const isValid = LogvCoin.isValid();
+				opened.forEach(node => {
+					if (node.address === address) {	
+						node.socket.send(JSON.stringify(produceMessage("TYPE_VERIFY", isValid)));
+					}
+				});
+				
 				break;
 			case "TYPE_HANDSHAKE":
 				const nodes = _message.data;
@@ -108,12 +126,12 @@ rl.on('line', (command) => {
 	switch(command.toLowerCase())
 	{
 		case 'send':
-			const transaction = new Transaction(key.JOHN_KEY.getPublic('hex'), key.JENNIFER_KEY.getPublic('hex'), 200, 20);
-			transaction.sign(key.JOHN_KEY);
+			const transaction = new Transaction(key.JENNIFER_KEY.getPublic('hex'), key.BOB_KEY.getPublic('hex'), 70, 10);
+			transaction.sign(key.JENNIFER_KEY);
 			sendMessage(produceMessage('TYPE_CREATE_TRANSACTION', transaction));
 			break;
 		case 'balance':
-			console.log('John Balance:', LogvCoin.getBalance(key.JOHN_KEY.getPublic('hex')));
+			console.log('Spock Balance:', LogvCoin.getBalance(key.JENNIFER_KEY.getPublic('hex')));
 			break;
 		case 'blockchain':
 			console.log(LogvCoin);
@@ -128,4 +146,3 @@ rl.on('line', (command) => {
 	process.exit(0);
 });
 
-process.on("uncaughtException", err => console.log(err));

@@ -11,19 +11,19 @@ class Block {
 	constructor(timestamp, data = []) {
 		this.timestamp = timestamp;
 		this.data = data;
-		this.hash = this.getHash();
+		this.hash = Block.getHash(this);
 		this.prevHash = "";
 		this.nonce = 0;
 	}
 
-	getHash() {
-		return SHA256(this.timestamp + JSON.stringify(this.data) + this.prevHash + this.nonce);
+	static getHash(block) {
+		return SHA256(block.timestamp + JSON.stringify(block.data) + block.prevHash + block.nonce);
 	}
 
 	mine(difficulty) {
 		while (!this.hash.startsWith(Array(difficulty + 1).join('0'))) {
 			this.nonce++;
-			this.hash = this.getHash();
+			this.hash = Block.getHash(this);
 		}
 	}
 
@@ -92,7 +92,7 @@ class Blockchain {
 		for (let i = 1; i < this.chain.length; i++) {
 			const currentBlock = this.chain[i];
 			const prevBlock = this.chain[i-1];
-			if (currentBlock.hash !== currentBlock.getHash() || 
+			if (currentBlock.hash !== Block.getHash(currentBlock) || 
 				currentBlock.prevHash !== prevBlock.hash ||
 				!Block.hasValidTransactions(currentBlock, this)
 				) {

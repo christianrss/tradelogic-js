@@ -6,60 +6,29 @@ const readline = require('readline');
 
 const key = require('./keys');
 
-const PORT = 3002;
-
-const MY_ADDRESS = "ws://localhost:3002";
+const PORT = 3003;
+const PEERS = ['ws://localhost:3002'];
+const MY_ADDRESS = "ws://localhost:3003";
 
 const server = new WS.Server({ port: PORT });
 
 let opened = [], connected = [];
 
-console.log("Jennifer listening on PORT", PORT);
+console.log("John listening on PORT", PORT);
 
 server.on("connection", (socket) => {
 	socket.on("message", message => {
 		const _message = JSON.parse(message);
 		console.log(_message);
 		switch(_message.type) {
-			case "TYPE_REPLACE_CHAIN":
-				const [ newBlock, newDiff ] = _message.data;
-				if (newBlock.previousHash !== LogvCoin.getLastBlock().prevHash &&
-					LogvCoin.getLastBlock().hash === newBlock.prevHash &&
-					Block.hasValidTransactions(newBlock, LogvCoin))
-					{
-						LogvCoin.chain.push(newBlock);
-						LogvCoin.difficulty = newDiff;
-					}
-				break;
-			case "TYPE_CREATE_TRANSACTION":
-				const transaction = _message.data;
-				if (!isTransactionDuplicate(transaction)) {
-					LogvCoin.addTransaction(transaction);
-				}
-				break;
 			case "TYPE_BALANCE":
-				const [address, public_key] = _message.data;
-				opened.forEach(node => {
-					if (node.address === address) {
-						const balance = LogvCoin.getBalance(public_key);
-						node.socket.send(JSON.stringify(produceMessage("TYPE_BALANCE", balance)));
-					}
-				});
-			case "TYPE_VERIFIY":
-				const peer_address = _message.data[0];
-				const isValid = LogvCoin.isValid();
-				opened.forEach(node => {
-					if (node.address === address) {
-						const balance = LogvCoin.getBalance(public_key);
-						node.socket.send(JSON.stringify(produceMessage("TYPE_VERIFY", isValid)));
-					}
-				});
-				
+				const amount = _message.data;
+				console.log('My balance: ', amount);
 				break;
-			case "TYPE_HANDSHAKE":
-				const nodes = _message.data;
-				nodes.forEach(node => connect(node));
-			
+			case "TYPE_VERIFIY":
+				const isValid = _message.data;
+				console.log('Blockchain isValid:', isValid);
+				break;
 		}
 	});
 
@@ -117,6 +86,8 @@ function sendMessage(message) {
 	});
 }
 
+PEERS.forEach(peer => connect(peer));
+
 const rl = readline.createInterface({
 	input: process.stdin,
 	output: process.stdout,
@@ -127,15 +98,18 @@ rl.on('line', (command) => {
 	switch(command.toLowerCase())
 	{
 		case 'send':
-			const transaction = new Transaction(key.JENNIFER_KEY.getPublic('hex'), key.BOB_KEY.getPublic('hex'), 70, 10);
-			transaction.sign(key.JENNIFER_KEY);
+			const transaction = new Transaction(key.BOB_KEY.getPublic('hex'), key.JOHN_KEY.getPublic('hex'), 50, 10);
+			transaction.sign(key.BOB_KEY);
 			sendMessage(produceMessage('TYPE_CREATE_TRANSACTION', transaction));
 			break;
 		case 'balance':
-			console.log('Jennifer Balance:', LogvCoin.getBalance(key.JENNIFER_KEY.getPublic('hex')));
+			send(produceMessage('TYPE_BALANCE', ['ws://localhost:3003', key.BOB_KEY.getPublic('hex')]));
 			break;
 		case 'blockchain':
 			console.log(LogvCoin);
+			break;
+		case 'verify':
+			send(produceMessage('TYPE_VERIFIY', ['ws://localhost:3003']));
 			break;
 		case 'clear':
 			console.clear();
@@ -147,3 +121,4 @@ rl.on('line', (command) => {
 	process.exit(0);
 });
 
+process.on("uncaughtException", err => console.log(err));
